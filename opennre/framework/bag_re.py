@@ -101,6 +101,8 @@ class BagRE(nn.Module):
     def train_model(self, metric='auc'):
         best_metric = 0
         best_epoch = 0
+        min_loss = 1
+        min_epoch = 0
         for epoch in range(self.max_epoch):
             # Train
             self.train()
@@ -136,7 +138,10 @@ class BagRE(nn.Module):
                 avg_acc.update(acc, 1)
                 avg_pos_acc.update(pos_acc, 1)
                 t.set_postfix(loss=avg_loss.avg, acc=avg_acc.avg, pos_acc=avg_pos_acc.avg)
-                
+                # loss最小的epoch
+                if avg_loss.val < min_loss:
+                    min_loss = avg_loss.val
+                    min_epoch = epoch
                 # Optimize
                 loss.backward()
                 self.optimizer.step()
@@ -156,7 +161,7 @@ class BagRE(nn.Module):
                 best_metric = result[metric]
                 best_epoch = epoch
             # 连续6个epoch损失函数没有继续下降，则判断为收敛
-            if epoch - best_epoch >= 6:
+            if epoch - min_epoch >= 6:
                 break
         print("Best %s on val set: %f" % (metric, best_metric))
 
