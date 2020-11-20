@@ -5,6 +5,7 @@ from .data_loader import SentenceRELoader, BagRELoader
 from .utils import AverageMeter
 from tqdm import tqdm
 import os
+import numpy as np
 
 class BagRE(nn.Module):
 
@@ -99,6 +100,7 @@ class BagRE(nn.Module):
 
     def train_model(self, metric='auc'):
         best_metric = 0
+        best_epoch = 0
         for epoch in range(self.max_epoch):
             # Train
             self.train()
@@ -145,10 +147,17 @@ class BagRE(nn.Module):
             result = self.eval_model(self.val_loader)
             print("AUC: %.4f" % result['auc'])
             print("Micro F1: %.4f" % (result['micro_f1']))
+            print("P@100: %.4f" % result['P100'])
+            print("P@200: %.4f" % result['P200'])
+            print("P@300: %.4f" % result['P300'])
             if result[metric] > best_metric:
                 print("Best ckpt and saved.")
                 torch.save({'state_dict': self.model.module.state_dict()}, self.ckpt)
                 best_metric = result[metric]
+                best_epoch = epoch
+            # 连续6个epoch损失函数没有继续下降，则判断为收敛
+            if epoch - best_epoch >= 6:
+                break
         print("Best %s on val set: %f" % (metric, best_metric))
 
     def eval_model(self, eval_loader):
