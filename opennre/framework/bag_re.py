@@ -139,8 +139,8 @@ class BagRE(nn.Module):
                 avg_pos_acc.update(pos_acc, 1)
                 t.set_postfix(loss=avg_loss.avg, acc=avg_acc.avg, pos_acc=avg_pos_acc.avg)
                 # loss最小的epoch
-                if avg_loss.val < min_loss:
-                    min_loss = avg_loss.val
+                if avg_loss.avg < min_loss:
+                    min_loss = avg_loss.avg
                     min_epoch = epoch
                 # Optimize
                 loss.backward()
