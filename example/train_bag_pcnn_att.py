@@ -117,7 +117,7 @@ if not args.only_test:
 
 # Test the model
 framework.load_state_dict(torch.load(ckpt)['state_dict'])
-result = framework.eval_model(framework.test_loader)
+result, hits_result = framework.eval_model(framework.test_loader)
 
 # Print the result
 logging.info('Test set results:')
@@ -126,6 +126,11 @@ logging.info('Micro F1: {}'.format(result['micro_f1']))
 logging.info('P@100: {}'.format(result['P100']))
 logging.info('P@200: {}'.format(result['P200']))
 logging.info('P@300: {}'.format(result['P300']))
-# logging.info('Hits@10: {}'.format(result['Hits100']))
-# logging.info('Hits@15: {}'.format(result['Hits200']))
-# logging.info('Hits@20: {}'.format(result['Hits300']))
+logging.info('Micro Hits@K:')
+logging.info('Hits@10: {}'.format(hits_result['micro']['H10']))
+logging.info('Hits@15: {}'.format(hits_result['micro']['H15']))
+logging.info('Hits@20: {}'.format(hits_result['micro']['H20']))
+logging.info('Mscro Hits@K:')
+logging.info('Hits@10: {}'.format(hits_result['macro']['H10']))
+logging.info('Hits@15: {}'.format(hits_result['macro']['H15']))
+logging.info('Hits@20: {}'.format(hits_result['macro']['H20']))

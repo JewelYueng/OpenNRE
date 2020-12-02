@@ -20,7 +20,7 @@ class BERTEncoder(nn.Module):
         self.bert = BertModel.from_pretrained(pretrain_path)
         self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
 
-    def forward(self, token, att_mask):
+    def forward(self, token, att_mask, pos1, pos2):
         """
         Args:
             token: (B, L), index of tokens
@@ -78,10 +78,17 @@ class BERTEncoder(nn.Module):
             ent1 = ['[unused2]'] + ent1 + ['[unused3]'] if not rev else ['[unused0]'] + ent1 + ['[unused1]']
 
         re_tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
+        pos1 = 1 + len(sent0) if not rev else 1 + len(sent0 + ent0 + sent1)
+        pos2 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
+        pos1 = min(self.max_length - 1, pos1)
+        pos2 = min(self.max_length - 1, pos2)
         
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(re_tokens)
         avai_len = len(indexed_tokens)
 
+        # Position
+        pos1 = torch.tensor([[pos1]]).long()
+        pos2 = torch.tensor([[pos2]]).long()
         # Padding
         if self.blank_padding:
             while len(indexed_tokens) < self.max_length:
@@ -93,7 +100,7 @@ class BERTEncoder(nn.Module):
         att_mask = torch.zeros(indexed_tokens.size()).long()  # (1, L)
         att_mask[0, :avai_len] = 1
 
-        return indexed_tokens, att_mask
+        return indexed_tokens, att_mask, pos1, pos2
 
 
 class BERTEntityEncoder(nn.Module):
@@ -106,7 +113,8 @@ class BERTEntityEncoder(nn.Module):
         super().__init__()
         self.max_length = max_length
         self.blank_padding = blank_padding
-        self.hidden_size = 768 * 2
+        # self.hidden_size = 768 * 2
+        self.hidden_size = 128 * 2
         self.mask_entity = mask_entity
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert = BertModel.from_pretrained(pretrain_path)

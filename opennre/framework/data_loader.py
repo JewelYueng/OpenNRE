@@ -3,6 +3,7 @@ import torch.utils.data as data
 import os, random, json, logging
 import numpy as np
 import sklearn.metrics
+from .utils import getArrayFromFile
 
 class SentenceREDataset(data.Dataset):
     """
@@ -226,8 +227,7 @@ class BagREDataset(data.Dataset):
         label = torch.tensor(label).long() # (B)
         return [label, bag_name, scope] + seqs
 
-  
-    def eval(self, pred_result):
+    def eval(self, pred_result, hits=False):
         """
         Args:
             pred_result: a list with dict {'entpair': (head_id, tail_id), 'relation': rel, 'score': score}.
@@ -248,12 +248,85 @@ class BagREDataset(data.Dataset):
                 correct += 1
             prec.append(float(correct) / float(i + 1))
             rec.append(float(correct) / float(total))
-        auc = sklearn.metrics.auc(x=rec, y=prec)
         np_prec = np.array(prec)
         np_rec = np.array(rec) 
         f1 = (2 * np_prec * np_rec / (np_prec + np_rec + 1e-20)).max()
         mean_prec = np_prec.mean()
+        auc = sklearn.metrics.auc(x=rec, y=prec)
         return {'micro_p': np_prec, 'micro_r': np_rec, 'micro_p_mean': mean_prec, 'micro_f1': f1, 'auc': auc, 'P100': prec[99], 'P200': prec[199], 'P300': prec[299]}
+
+    
+    def eval_hits(self, pred_result, mode="hits100"):
+        
+        filename = ''
+        if mode == 'hits100':
+            filename = 'benchmark/nyt10-aug/rel100.txt'
+        elif mode == 'hits200':
+            filename = 'benchmark/nyt10-aug/rel200.txt'
+        # 获取示例数量少于100、200、300的关系名称
+        fewrel = getArrayFromFile(filename)
+        
+        ss = 0
+        ss10 = 0
+        ss15 = 0
+        ss20 = 0
+
+        ss_rel = {}
+        ss10_rel = {}
+        ss15_rel = {}
+        ss20_rel = {}
+
+        for i, item in enumerate(pred_result):
+            entitypair = item['entpair']
+            scores = item['logits']
+            relation = ''
+            rel_id = 0
+            score = 0
+            for rel in self.rel2id:
+                # 找到该实体对的label
+                if (entitypair[0], entitypair[1], rel) in self.facts:
+                    relation = rel
+                    rel_id = self.rel2id[rel]
+                    score = scores[rel_id]
+                    break
+            # 该实体对对应的是长尾关系
+            if relation in fewrel:
+                ss += 1
+                mx = 0
+                # 获取比gold label评分高的示例
+                for sc in scores:
+                    if sc > score:
+                        mx += 1
+                if not relation in ss_rel:
+                    ss_rel[relation] = 0
+                    ss10_rel[relation] = 0
+                    ss15_rel[relation] = 0
+                    ss20_rel[relation] = 0
+                ss_rel[relation] += 1.0
+                if mx < 10:
+                    ss10 += 1.0
+                    ss10_rel[relation] += 1.0
+                if mx < 15:
+                    ss15 += 1.0
+                    ss15_rel[relation] += 1.0
+                if mx < 20:
+                    ss20 += 1.0
+                    ss20_rel[relation] += 1.0
+
+        return {
+            'micro': {
+                'H10': ss10 / ss, 
+                'H15': ss15 / ss, 
+                'H20': ss20 / ss
+                }, 
+            'macro': {
+                'H10': np.array([ss10_rel[i]/ss_rel[i]  for i in ss_rel]).mean(), 
+                'H15': np.array([ss15_rel[i]/ss_rel[i]  for i in ss_rel]).mean(), 
+                'H20': np.array([ss20_rel[i]/ss_rel[i]  for i in ss_rel]).mean()
+                }
+            }
+
+
 
 def BagRELoader(path, rel2id, tokenizer, batch_size, 
         shuffle, entpair_as_bag=False, bag_size=0, num_workers=8, 

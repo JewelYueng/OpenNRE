@@ -138,18 +138,19 @@ class BagRE(nn.Module):
                 avg_acc.update(acc, 1)
                 avg_pos_acc.update(pos_acc, 1)
                 t.set_postfix(loss=avg_loss.avg, acc=avg_acc.avg, pos_acc=avg_pos_acc.avg)
-                # loss最小的epoch
-                if avg_loss.avg < min_loss:
-                    min_loss = avg_loss.avg
-                    min_epoch = epoch
                 # Optimize
                 loss.backward()
                 self.optimizer.step()
                 self.optimizer.zero_grad()
-
+            # loss最小的epoch
+            if avg_loss.avg < min_loss:
+                min_loss = avg_loss.avg
+                min_epoch = epoch
+                print("Minimum Loss Updated: %.4f" % min_loss)
+                
             # Val 
             print("=== Epoch %d val ===" % epoch)
-            result = self.eval_model(self.val_loader)
+            result, _ = self.eval_model(self.val_loader)
             print("AUC: %.4f" % result['auc'])
             print("Micro F1: %.4f" % (result['micro_f1']))
             print("P@100: %.4f" % result['P100'])
@@ -170,6 +171,7 @@ class BagRE(nn.Module):
         with torch.no_grad():
             t = tqdm(eval_loader)
             pred_result = []
+            hits_result = []
             for iter, data in enumerate(t):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
@@ -191,8 +193,14 @@ class BagRE(nn.Module):
                                 'relation': self.model.module.id2rel[relid], 
                                 'score': logits[i][relid]
                             })
+                    
+                    hits_result.append({
+                        'entpair': bag_name[i][:2],
+                        'logits': logits[i]
+                    })
             result = eval_loader.dataset.eval(pred_result)
-        return result
+            hits_result = eval_loader.dataset.eval_hits(hits_result, mode="hits200")
+        return result, hits_result
 
     def load_state_dict(self, state_dict):
         self.model.module.load_state_dict(state_dict)

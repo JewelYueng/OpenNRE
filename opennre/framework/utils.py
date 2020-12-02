@@ -27,3 +27,12 @@ class AverageMeter(object):
             return str(self.val)
         # for stats
         return '%.4f (%.4f)' % (self.val, self.avg)
+
+def getArrayFromFile(filename):
+    result = []
+    f = open(filename, 'r')
+    lines = f.readlines()
+    for line in lines:
+        result.append(line.strip())
+    f.close()
+    return result
