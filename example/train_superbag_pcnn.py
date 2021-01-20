@@ -15,9 +15,6 @@ parser.add_argument('--ckpt', default='',
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
         help='Only run test')
-# BERT的参数设置
-parser.add_argument('--mask_entity', action="store_true", help="Mask entity mentions")
-parser.add_argument('--pretrain_path', default='bert-base-uncased', help=' Pretrained ckpt path')
 
 # Data
 parser.add_argument('--metric', default='auc', choices=['micro_f1', 'auc'],
@@ -32,6 +29,14 @@ parser.add_argument('--test_file', default='', type=str,
         help='Test data file')
 parser.add_argument('--rel2id_file', default='', type=str,
         help='Relation to ID file')
+
+# SuperBag related
+
+parser.add_argument('--cluster_size', type=int, default=100, 
+        help='The account of superbag cluster, default 100')
+parser.add_argument('--num_iter', type=int, default=50)
+parser.add_argument('--weight', type=float, default=0.5)
+parser.add_argument('--train_as_bag', action="store_true")
 
 # Bag related
 parser.add_argument('--bag_size', type=int, default=0,
@@ -79,26 +84,41 @@ for arg in vars(args):
 rel2id = json.load(open(args.rel2id_file))
 
 # Download glove
-# opennre.download('glove', root_path=root_path)
-# word2id = json.load(open(os.path.join(root_path, 'pretrain/glove/glove.6B.50d_word2id.json')))
-# word2vec = np.load(os.path.join(root_path, 'pretrain/glove/glove.6B.50d_mat.npy'))
+opennre.download('glove', root_path=root_path)
+word2id = json.load(open(os.path.join(root_path, 'pretrain/glove/glove.6B.50d_word2id.json')))
+word2vec = np.load(os.path.join(root_path, 'pretrain/glove/glove.6B.50d_mat.npy'))
 
 # Define the sentence encoder
-sentence_encoder = opennre.encoder.BERTEntityEncoder(
+sentence_encoder = opennre.encoder.PCNNEncoder(
+    token2id=word2id,
     max_length=args.max_length,
-    pretrain_path=args.pretrain_path,
-    mask_entity=args.mask_entity
+    word_size=50,
+    position_size=5,
+    hidden_size=230,
+    blank_padding=True,
+    kernel_size=3,
+    padding_size=1,
+    word2vec=word2vec,
+    dropout=0.5
 )
 
+bag_encoder = opennre.model.IntraBagAttention(sentence_encoder, len(rel2id), rel2id)
+
+
 # Define the model
-model = opennre.model.BagAttention(sentence_encoder, len(rel2id), rel2id)
+# model = opennre.model.BagAttention(sentence_encoder, len(rel2id), rel2id)
+
+model = opennre.model.BagCluster(bag_encoder, len(rel2id), rel2id, cluster_num=args.cluster_size, num_iter=args.num_iter)
+
+
 
 # Define the whole training framework
-framework = opennre.framework.BagRE(
+framework = opennre.framework.SuperBagRE(
     train_path=args.train_file,
     val_path=args.val_file,
     test_path=args.test_file,
     model=model,
+    bag_encoder=bag_encoder,
     ckpt=ckpt,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
@@ -109,7 +129,7 @@ framework = opennre.framework.BagRE(
 
 # Train the model
 if not args.only_test:
-    framework.train_model(args.metric)
+    framework.train_model(args.metric, args.weight, args.train_as_bag)
 
 # Test the model
 framework.load_state_dict(torch.load(ckpt)['state_dict'])

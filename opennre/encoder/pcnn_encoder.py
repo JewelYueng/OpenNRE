@@ -25,8 +25,8 @@ class PCNNEncoder(BaseEncoder):
                  mask_entity=False):
         """
         Args:
-            token2id: dictionary of token->idx mapping
-            max_length: max length of sentence, used for postion embedding
+            token2id: dictionary of token->idx mappig
+            max_length: max length of sentence, used nfor postion embedding
             hidden_size: hidden size
             word_size: size of word embedding
             position_size: size of position embedding

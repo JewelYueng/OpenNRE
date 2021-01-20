@@ -7,10 +7,54 @@ from tqdm import tqdm
 import os
 import numpy as np
 
-class BagRE(nn.Module):
+#  Custom Loss Function
+
+def reconstruction(assignment, labels):
+    """
+    reconstruction function(Task specific function)
+
+    Args:
+        assignment:(B, n_sbags, n_bags) assignment of superbag
+        labels: (B, C, n_bags) labels of bags
+    """
+    labels = labels.permute(0, 2, 1).contiguous()
+
+    spixel_mean = torch.bmm(assignment, labels) / (assignment.sum(2, keepdim=True) + 1e-16)
+    permuted_assignment = assignment.permute(0, 2, 1).contiguous()
+    reconstructed_labels = torch.bmm(permuted_assignment, spixel_mean)
+
+    return reconstructed_labels.permute(0, 2, 1).contiguous()
+
+def reconstruact_loss_with_loss_entropy(assignment, labels):
+    """
+    reconstruction loss(Task specific function)
+
+    Args:
+        assignment:(B, n_sbags, n_bags) assignment of superbag
+        labels: (B, C, n_bags) labels of bags
+    """
+    reconstructed_labels = reconstruction(assignment, labels)
+    reconstructed_labels = reconstructed_labels / (1e-16 + reconstructed_labels.sum(1, keepdim=True))
+    mask = labels > 0
+    return -(reconstructed_labels[mask] + 1e-16).log().mean()
+
+
+def compact_loss(assignment, labels):
+    """
+    compact loss encourage superbag to have lower spatial variance
+
+    Args:
+        assignment: (B, n_sbags, n_bags)
+        labels:(B, C, n_bags)
+    """
+    reconstructed_labels = reconstruction(assignment, labels)
+    return nn.functional.mse_loss(reconstructed_labels, labels)
+
+class SuperBagRE(nn.Module):
 
     def __init__(self, 
                  model,
+                 bag_encoder,
                  train_path, 
                  val_path, 
                  test_path,
@@ -26,12 +70,13 @@ class BagRE(nn.Module):
         super().__init__()
         self.max_epoch = max_epoch
         self.bag_size = bag_size
+        self.bag_encoder = bag_encoder
         # Load data
         if train_path != None:
             self.train_loader = BagRELoader(
                 train_path,
                 model.rel2id,
-                model.sentence_encoder.tokenize,
+                model.bag_encoder.sentence_encoder.tokenize,
                 batch_size,
                 True,
                 bag_size=self.bag_size,
@@ -41,7 +86,7 @@ class BagRE(nn.Module):
             self.val_loader = BagRELoader(
                 val_path,
                 model.rel2id,
-                model.sentence_encoder.tokenize,
+                model.bag_encoder.sentence_encoder.tokenize,
                 batch_size,
                 False,
                 bag_size=self.bag_size,
@@ -51,7 +96,7 @@ class BagRE(nn.Module):
             self.test_loader = BagRELoader(
                 test_path,
                 model.rel2id,
-                model.sentence_encoder.tokenize,
+                model.bag_encoder.sentence_encoder.tokenize,
                 batch_size,
                 False,
                 bag_size=self.bag_size,
@@ -98,11 +143,15 @@ class BagRE(nn.Module):
         # Ckpt
         self.ckpt = ckpt
 
-    def train_model(self, metric='auc'):
+    def train_model(self, metric='auc', weight=1.0, train_as_bag=True):
         best_metric = 0
         best_epoch = 0
         min_loss = 1
         min_epoch = 0
+        if train_as_bag:
+            print('=== train unit is bag level===')
+        else:
+            print('=== train unit is superbag level===')
         for epoch in range(self.max_epoch):
             # Train
             self.train()
@@ -122,10 +171,12 @@ class BagRE(nn.Module):
                 bag_name = data[1]
                 scope = data[2]
                 args = data[3:]
-                logits = self.model(label, scope, *args, bag_size=self.bag_size)
-                
-                loss = self.criterion(logits, label)
-                score, pred = logits.max(-1) # (B)
+                loss1, cluster_label, logits = self.model(label, scope, args, bag_size=self.bag_size, train_as_bag=train_as_bag)
+                if not train_as_bag:
+                    label = torch.Tensor(cluster_label).long().cuda()
+                loss2 = self.criterion(logits, label)
+                loss = weight * loss1 + loss2
+                score, pred = logits.max(-1) # (D)
                 acc = float((pred == label).long().sum()) / label.size(0)
                 pos_total = (label != 0).long().sum()
                 pos_correct = ((pred == label).long() * (label != 0).long()).sum()
@@ -184,7 +235,7 @@ class BagRE(nn.Module):
                 bag_name = data[1]
                 scope = data[2]
                 args = data[3:]
-                logits = self.model(None, scope, *args, train=False, bag_size=self.bag_size) # results after softmax
+                _, _, logits = self.model(label, scope, args, bag_size=self.bag_size)
                 logits = logits.cpu().numpy()
                 for i in range(len(logits)):
                     for relid in range(self.model.module.num_class):

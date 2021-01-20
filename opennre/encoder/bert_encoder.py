@@ -113,11 +113,18 @@ class BERTEntityEncoder(nn.Module):
         super().__init__()
         self.max_length = max_length
         self.blank_padding = blank_padding
+        # base
         # self.hidden_size = 768 * 2
-        self.hidden_size = 128 * 2
+        # small
+        # self.hidden_size = 512 * 2
+        #mini
+        self.hidden_size = 256 * 2
+        # tiny
+        # self.hidden_size = 128 * 2
         self.mask_entity = mask_entity
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert = BertModel.from_pretrained(pretrain_path)
+        # self.bert = nn.DataParallel(self.bert)
         self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
@@ -208,7 +215,7 @@ class BERTEntityEncoder(nn.Module):
                 indexed_tokens.append(0)  # 0 is id for [PAD]
             indexed_tokens = indexed_tokens[:self.max_length]
         indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0)  # (1, L)
-
+        
         # Attention mask
         att_mask = torch.zeros(indexed_tokens.size()).long()  # (1, L)
         att_mask[0, :avai_len] = 1

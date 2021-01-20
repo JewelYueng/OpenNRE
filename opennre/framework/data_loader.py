@@ -175,12 +175,17 @@ class BagREDataset(data.Dataset):
     def __getitem__(self, index):
         bag = self.bag_scope[index]
         if self.bag_size > 0:
+            resize_bag = []
             if self.bag_size <= len(bag):
                 resize_bag = random.sample(bag, self.bag_size)
+            # 前：如果bag_size > bag的大小，则进行重采样
+            # 后：如果bag_size > bag的大小，则使用整包
             else:
                 resize_bag = bag + list(np.random.choice(bag, self.bag_size - len(bag)))
             bag = resize_bag
-            
+        max_bag = 2000
+        if len(bag) > max_bag:
+            bag = random.sample(bag, max_bag)
         seqs = None
         rel = self.rel2id[self.data[bag[0]]['relation']]
         for sent_id in bag:
@@ -339,7 +344,8 @@ def BagRELoader(path, rel2id, tokenizer, batch_size,
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
-            pin_memory=True,
+            pin_memory=False,
             num_workers=num_workers,
+            drop_last=True,
             collate_fn=collate_fn)
     return data_loader
