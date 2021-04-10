@@ -4,6 +4,7 @@ import os, random, json, logging
 import numpy as np
 import sklearn.metrics
 from .utils import getArrayFromFile
+import json
 
 class SentenceREDataset(data.Dataset):
     """
@@ -248,9 +249,15 @@ class BagREDataset(data.Dataset):
         rec = []
         correct = 0
         total = len(self.facts)
+        y_true = []
+        y_logits = []
         for i, item in enumerate(sorted_pred_result):
             if (item['entpair'][0], item['entpair'][1], item['relation']) in self.facts:
                 correct += 1
+                y_true.append(1)
+            else:
+                y_true.append(0)
+            y_logits.append(item['score'])
             prec.append(float(correct) / float(i + 1))
             rec.append(float(correct) / float(total))
         np_prec = np.array(prec)
@@ -258,7 +265,7 @@ class BagREDataset(data.Dataset):
         f1 = (2 * np_prec * np_rec / (np_prec + np_rec + 1e-20)).max()
         mean_prec = np_prec.mean()
         auc = sklearn.metrics.auc(x=rec, y=prec)
-        return {'micro_p': np_prec, 'micro_r': np_rec, 'micro_p_mean': mean_prec, 'micro_f1': f1, 'auc': auc, 'P100': prec[99], 'P200': prec[199], 'P300': prec[299]}
+        return {'micro_p': np_prec, 'micro_r': np_rec, 'micro_p_mean': mean_prec, 'micro_f1': f1, 'auc': auc, 'P100': prec[99], 'P200': prec[199], 'P300': prec[299], 'y_true': y_true, 'y_logits': y_logits}
 
     
     def eval_hits(self, pred_result, mode="hits100"):
@@ -330,7 +337,52 @@ class BagREDataset(data.Dataset):
                 'H20': np.array([ss20_rel[i]/ss_rel[i]  for i in ss_rel]).mean()
                 }
             }
-
+    def predict_case(self, batch_idx, bag_names, final_assignments, prefix=''):
+        one_batch_sents = []
+        for (idx, name) in enumerate(bag_names):
+            bag_id = self.name2id[name]
+            bag_scope = self.bag_scope[bag_id]
+            bag_sent = [self.data[i] for i in bag_scope]
+            for sen in bag_sent:
+                sen['assignment'] = final_assignments[idx]
+            one_batch_sents += bag_sent
+        f = open('./predict_result/' + prefix + '_batch' + str(batch_idx) + '.txt', 'w+')
+        f.write('\n'.join(json.dumps(i) for i in one_batch_sents))
+        f.close()
+    
+    def predict_case_LT(self, batch_idx, bag_names, rel_num, pred_result, prefix=''):
+        one_batch_sents = []
+        hits10 = 0
+        hits15 = 0
+        hits20 = 0
+        for (idx, name) in enumerate(bag_names):
+            bag_id = self.name2id[name]
+            bag_scope = self.bag_scope[bag_id]
+            bag_sent = [self.data[i] for i in bag_scope]
+            results = pred_result[idx * rel_num: (idx + 1) * rel_num - 1]
+            results = sorted(results, key=lambda x:x['score'], reverse=True)
+            for sen in bag_sent:
+                sen['top10'] = [res['relation'] for res in results[:10]]
+                sen['top15'] = [res['relation'] for res in results[:15]]
+                sen['top20'] = [res['relation'] for res in results[:20]]
+                if sen['relation'] in sen['top10']:
+                   hits10 += 1
+                   hits15 += 1
+                   hits20 += 1
+                elif sen['relation'] in sen['top15']:
+                    hits15 += 1
+                    hits20 += 1
+                elif sen['relation'] in sen['top20']:
+                    hits20 += 1
+            one_batch_sents += bag_sent
+        f = open('./predict_result_lt/' + prefix + '_batch' + str(batch_idx) + '.txt', 'w+')
+        f.write('\n'.join(json.dumps(i) for i in one_batch_sents))
+        f.close()
+        print('batch' + str(batch_idx) + 'Hits@K:')
+        print('Hits10:' + str(hits10))
+        print('Hits15:' + str(hits15))
+        print('Hits20:' + str(hits20))
+        
 
 
 def BagRELoader(path, rel2id, tokenizer, batch_size, 

@@ -171,7 +171,7 @@ class SuperBagRE(nn.Module):
                 bag_name = data[1]
                 scope = data[2]
                 args = data[3:]
-                loss1, cluster_label, logits = self.model(label, scope, args, bag_size=self.bag_size, train_as_bag=train_as_bag)
+                loss1, cluster_label, logits, _ = self.model(label, scope, args, bag_size=self.bag_size, train_as_bag=train_as_bag)
                 if not train_as_bag:
                     label = torch.Tensor(cluster_label).long().cuda()
                 loss2 = self.criterion(logits, label)
@@ -235,7 +235,8 @@ class SuperBagRE(nn.Module):
                 bag_name = data[1]
                 scope = data[2]
                 args = data[3:]
-                _, _, logits = self.model(label, scope, args, bag_size=self.bag_size)
+                _, _, logits, final_assignment = self.model(label, scope, args, bag_size=self.bag_size)
+                # save_final_assignment(data, final_assignment)
                 logits = logits.cpu().numpy()
                 for i in range(len(logits)):
                     for relid in range(self.model.module.num_class):
@@ -244,14 +245,20 @@ class SuperBagRE(nn.Module):
                                 'entpair': bag_name[i][:2], 
                                 'relation': self.model.module.id2rel[relid], 
                                 'score': logits[i][relid]
-                            })
-                    
+                            })                    
                     hits_result.append({
                         'entpair': bag_name[i][:2],
                         'logits': logits[i]
                     })
+                # 每一个batch记录下超包分类情况
+                # eval_loader.dataset.predict_case(iter, bag_name, final_assignment)
+                # 记录长尾关系的预测结果
+                # 非NA关系的数量
+                rel_num = self.model.module.num_class - 1 
+                eval_loader.dataset.predict_case_LT(iter, bag_name, rel_num, pred_result)
             result = eval_loader.dataset.eval(pred_result)
             hits_result = eval_loader.dataset.eval_hits(hits_result, mode="hits100")
+            
         return result, hits_result
 
     def load_state_dict(self, state_dict):

@@ -194,6 +194,13 @@ def get_cluster_labels(labels, sb2b_index, train_as_bag):
             major_label = np.argmax(np.bincount(sb_labels))
             cluster_labels.append(major_label)
         return cluster_labels
+def compute_final_assignment(bag_feat, superbag_feat):
+    fianl_assignments = []
+    for bag in bag_feat:
+        distances = torch.pow(bag - superbag_feat, 2).sum(1)
+        fianl_assignments.append(distances.argmin().item())
+    return fianl_assignments
+
 
 class BagCluster(BagRE):
     """
@@ -253,13 +260,15 @@ class BagCluster(BagRE):
                 # compact_loss = CompactLoss()
                 # loss2 = compact_loss(lable, )
                 # loss3: 将超包特征赋予给原来的包，获取最后的bag_logits
+            final_bag_feat = compute_final_bag_rep(bag_rep, new_sbag_feat, b2sb_index)
+            final_superbag_feat = compute_final_superbag_rep(bag_rep, new_sbag_feat, sb2b_index)
+            final_assignment = compute_final_assignment(final_bag_feat, final_superbag_feat)
             if train_as_bag:
-                final_bag_feat = compute_final_bag_rep(bag_rep, new_sbag_feat, b2sb_index)
                 bag_logits = self.fc(final_bag_feat)
             else:
-                final_superbag_feat = compute_final_superbag_rep(bag_rep, new_sbag_feat, sb2b_index)
                 bag_logits = self.fc(final_superbag_feat)
-            return loss1, cluster_labels, bag_logits
+            
+            return loss1, cluster_labels, bag_logits, final_assignment
                 
         else:
             print('=== Testing ===')

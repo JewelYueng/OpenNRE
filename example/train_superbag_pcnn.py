@@ -134,6 +134,9 @@ if not args.only_test:
 # Test the model
 framework.load_state_dict(torch.load(ckpt)['state_dict'])
 result, hits_result = framework.eval_model(framework.test_loader)
+# 存下y_true y_logits
+np.save('./result'+ args.ckpt + '_true.npy', result['y_true'])
+np.save('./result' + args.ckpt + '_scores.npy', result['y_logits'])
 
 # Print the result
 logging.info('Test set results:')
