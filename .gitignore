@@ -117,7 +117,6 @@ ckpt
 benchmark/tacred
 *.swp
 
-<<<<<<< HEAD
 # data and pretrain
 pretrain
 benchmark
@@ -129,8 +128,18 @@ benchmark
 
 # package
 opennre-egg.info
-=======
 # debug
 benchmark/nyt10-ori
 train_nyt10_pcnn_att_ori.py
->>>>>>> ebf8370... fix pcnn bug
+
+# results
+*.npy
+predict_result/
+predict_result_lt/
+pics/
+
+# jupyter notebok
+*.ipynb
+
+# train terminal
+train.sh
