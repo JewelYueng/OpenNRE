@@ -202,9 +202,10 @@ class BagRE(nn.Module):
                 # 记录长尾关系的预测结果
                 # 非NA关系的数量
                 rel_num = self.model.module.num_class - 1 
-                eval_loader.dataset.predict_case_LT(iter, bag_name, rel_num, pred_result)
+                # eval_loader.dataset.predict_case_LT(iter, bag_name, rel_num, pred_result)
             result = eval_loader.dataset.eval(pred_result)
-            hits_result = eval_loader.dataset.eval_hits(hits_result, mode="hits100")
+            # NYT-H不评估长尾关系
+            # hits_result = eval_loader.dataset.eval_hits(hits_result, mode="hits100")
         return result, hits_result
 
     def load_state_dict(self, state_dict):

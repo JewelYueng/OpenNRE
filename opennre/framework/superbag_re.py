@@ -251,13 +251,13 @@ class SuperBagRE(nn.Module):
                         'logits': logits[i]
                     })
                 # 每一个batch记录下超包分类情况
-                # eval_loader.dataset.predict_case(iter, bag_name, final_assignment)
+                eval_loader.dataset.predict_case(iter, bag_name, final_assignment, prefix='nyth')
                 # 记录长尾关系的预测结果
                 # 非NA关系的数量
                 rel_num = self.model.module.num_class - 1 
-                eval_loader.dataset.predict_case_LT(iter, bag_name, rel_num, pred_result)
+                # eval_loader.dataset.predict_case_LT(iter, bag_name, rel_num, pred_result)
             result = eval_loader.dataset.eval(pred_result)
-            hits_result = eval_loader.dataset.eval_hits(hits_result, mode="hits100")
+            # hits_result = eval_loader.dataset.eval_hits(hits_result, mode="hits100")
             
         return result, hits_result
 
