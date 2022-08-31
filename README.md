@@ -1,8 +1,6 @@
 # OpenNRE
 
-[![CircleCI](https://circleci.com/gh/thunlp/OpenNRE/tree/master.svg?style=svg)](https://circleci.com/gh/thunlp/OpenNRE/tree/master)
 
-**We have a DEMO website ([http://opennre.thunlp.ai/](http://opennre.thunlp.ai/)). Try it out!**
 
 OpenNRE is an open-source and extensible toolkit that provides a unified framework to implement relation extraction models. This package is designed for the following groups:
 
@@ -112,10 +110,9 @@ For now, we have the following available models:
 * `tacred_bert_softmax`: trained on `TACRED` dataset with a BERT encoder.
 * `tacred_bertentity_softmax`: trained on `TACRED` dataset with a BERT encoder (using entity representation concatenation).
 
-## Training
+## HOW to train
 
-You can train your own models on your own data with OpenNRE. In `example` folder we give example training codes for supervised RE models and bag-level RE models. You can either use our provided datasets or your own datasets.
+You can train our models with the data in `benchmark`. In `example` folder we give example training codes for DCSR. In `train.sh` file we give example training script. 
 
-## Google Group
 
-If you want to receive our update news or take part in discussions, please join our [Google Group](https://groups.google.com/forum/#!forum/opennre/join)
+
